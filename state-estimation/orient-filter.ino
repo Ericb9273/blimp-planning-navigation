@@ -148,8 +148,11 @@ void loop() {
   if (incomingByte == '0'){imu_state = false;}
   if (incomingByte == '1'){imu_state = true;}
   if(imu_state) {
+    // Poll sensors
     myIMU.readSensor();
+    float baroElevation = icp.getElevation()
     uint32_t read = millis();
+    
     uint32_t dt = read - last_read;
     last_read = read;
 
@@ -157,7 +160,6 @@ void loop() {
     xyzFloat accRaw = myIMU.getAccRawValues();
     xyzFloat corrAccRaw = myIMU.getCorrectedAccRawValues();
     xyzFloat gVal = myIMU.getGValues();
-    float baroElevation = icp.getElevation()
     float omega[3] = {gyr.x * to_rad, gyr.y * to_rad, gyr.z * to_rad};
     float accel[3] = {corrAccRaw.x, corrAccRaw.y, corrAccRaw.z};
 
