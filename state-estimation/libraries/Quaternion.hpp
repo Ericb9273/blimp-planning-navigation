@@ -2,7 +2,6 @@
 #define QUATERNION_H
 
 #include <math.h>
-#include <iostream>
 
 
 class Quaternion {
@@ -23,9 +22,7 @@ class Quaternion {
         Quaternion operator*(const Quaternion& q) const;
         Quaternion operator*(float scalar) const;
         Quaternion operator/(float scalar) const;
-        
-        friend std::ostream& operator<<(std::ostream& os, const Quaternion& q);
-        
+                
         void normalize();
         
         static Quaternion from_rotvec(const float *rotvec);

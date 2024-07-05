@@ -55,11 +55,6 @@ Quaternion Quaternion::operator/(float scalar) const {
     return Quaternion(w / scalar, x / scalar, y / scalar, z / scalar);
 }
 
-std::ostream& operator<<(std::ostream& out, const Quaternion& q) {
-    out << "w: " << q.w << ", x: " << q.x << ", y: " << q.y << ", z: " << q.z;
-    return out;
-}
-
 // Normalize the quaternion
 void Quaternion::normalize() {
     float n = norm();
@@ -93,20 +88,20 @@ float* Quaternion::to_euler(const Quaternion quat) {
     float euler[3] = {0, 0, 0};
     double sinr_cosp = 2 * (quat.w * quat.x + quat.y * quat.z);
     double cosr_cosp = 1 - 2 * (quat.x * quat.x + quat.y * quat.y);
-    double roll = std::atan2(sinr_cosp, cosr_cosp);
+    double roll = atan2(sinr_cosp, cosr_cosp);
 
     // Pitch (y-axis rotation)
     double sinp = 2 * (quat.w * quat.y - quat.z * quat.x);
     double pitch;
-    if (std::abs(sinp) >= 1)
-        pitch = std::copysign(M_PI / 2, sinp); // use 90 degrees if out of range
+    if (fabs(sinp) >= 1)
+        pitch = copysign(M_PI / 2, sinp); // use 90 degrees if out of range
     else
-        pitch = std::asin(sinp);
+        pitch = asin(sinp);
 
     // Yaw (z-axis rotation)
     double siny_cosp = 2 * (quat.w * quat.z + quat.x * quat.y);
     double cosy_cosp = 1 - 2 * (quat.y * quat.y + quat.z * quat.z);
-    double yaw = std::atan2(siny_cosp, cosy_cosp);
+    double yaw = atan2(siny_cosp, cosy_cosp);
     
     euler[0] = yaw;
     euler[1] = pitch;
