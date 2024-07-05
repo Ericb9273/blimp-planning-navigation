@@ -2,8 +2,11 @@
 
 #include <Servo.h>
 #include <Wire.h>
-#include <ICM20948_WE.h>
-#include "Quaternion.hpp
+#include <ICM20948_WE.h> // IMU
+#include <DFRobot_ICP10111.h> // Barometer
+#include "libraries/Quaternion.hpp"
+#include "libraries/altitude.h" // Altitude Estimator
+
 
 #define ICM20948_ADDR 0x68
 #define channumber 8      //8 channels of pwm in total.
@@ -11,7 +14,8 @@
 int channel[channumber];  //read Channel values
 int PPMin = 13;           // PPM signal sending from rc receiver to the D13 pin
 
-ICM20948_WE myIMU = ICM20948_WE(ICM20948_ADDR);
+ICM20948_WE myIMU = ICM20948_WE(ICM20948_ADDR); // IMU
+DFRobot_ICP10111 icp; // Barometer
 
 
 // Initializing Servo objects:
@@ -24,7 +28,7 @@ Servo left_servo;
 Servo capture;
 
 
-unsigned long mytime = 0;
+uint32_t mytime = 0;
 
 // The corresponding digital pins for sending signal to the servos.
 int right_motor_output_pin = 5;
@@ -35,15 +39,33 @@ int left_servo_pin = 3;
 
 int back_motor_output_pin = 7;
 
+// barometer state variables
+
 // imu state variables
 bool imu_state = true;
+uint32_t last_read = 0; //time of last read
+
+// gyr state variables
+bool gyr_state = true;
+
+// accel state variables
+bool accel_state = true;
+
+// orientation estimator varianles
+bool do_orient = true;
 Quaternion orientation;
-unsigned long last_read = 0;
+
+// altitude estimation object
+bool do_alt = true ;
+AltitudeEstimator altitude = AltitudeEstimator(0.0005, 	// sigma Accel
+                                               0.0005, 	// sigma Gyro
+                                               0.018,   // sigma Baro
+                                               0.5, 	// ca
+                                               0.1);	// accelThreshold
 
 // signed objects for storing decoded pwm signals
 signed servo_right_pulse, servo_left_pulse, right_motor_pulse, left_motor_pulse, back_motor_pulse,
   capture_angle;
-
 
 
 void setup() {
@@ -59,11 +81,12 @@ void setup() {
   } else {
     Serial.println("ICM20948 is connected");
   }
-//  myIMU.setAccOffsets(-16330.0, 16450.0, -16600.0, 16180.0, -16640.0, 16560.0);
 
+  // myIMU.setAccOffsets(-16330.0, 16450.0, -16600.0, 16180.0, -16640.0, 16560.0);
   Serial.println("Position your ICM20948 flat and don't move it - calibrating...");
   delay(1000);
   myIMU.autoOffsets();
+  myIMU.setAccRange(ICM20948_ACC_RANGE_2G); // Default
   Serial.println("Done!");
 
   /*  The gyroscope data is not zero, even if you don't move the ICM20948. 
@@ -74,8 +97,8 @@ void setup() {
   //myIMU.setGyrOffsets(-115.0, 130.0, 105.0);
 
   /* enables or disables the gyroscope sensor, default: enabled */
-   myIMU.enableGyr(true);
-   myIMU.enableAcc(true);
+   myIMU.enableGyr(gyr_state);
+   myIMU.enableAcc(accel_state);
 
   /*  ICM20948_GYRO_RANGE_250       250 degrees per second (default)
    *  ICM20948_GYRO_RANGE_500       500 degrees per second
@@ -105,7 +128,7 @@ void setup() {
   myIMU.setGyrDLPF(ICM20948_DLPF_6);
   myIMU.setAccDLPF(ICM20948_DLPF_6);
 
-
+  icp.setWorkPattern(icp.eUltraLowNoise);
 
   pinMode(PPMin, INPUT);  // setting up PPMin pin as input pin.
 
@@ -124,26 +147,45 @@ void loop() {
   char incomingByte = Serial.read();
   if (incomingByte == '0'){imu_state = false;}
   if (incomingByte == '1'){imu_state = true;}
-  if(imu_state){
+  if(imu_state) {
     myIMU.readSensor();
-    unsigned long read = millis();
-    unsigned long dt = read - last_read;
-    float dt_s = dt / 1000.0;
+    uint32_t read = millis();
+    uint32_t dt = read - last_read;
+    last_read = read;
+
     xyzFloat gyr = myIMU.getGyrValues();
+    xyzFloat accRaw = myIMU.getAccRawValues();
+    xyzFloat corrAccRaw = myIMU.getCorrectedAccRawValues();
+    xyzFloat gVal = myIMU.getGValues();
+    float baroElevation = icp.getElevation()
     float omega[3] = {gyr.x * to_rad, gyr.y * to_rad, gyr.z * to_rad};
-    float dtheta[3] = {omega[0] * dt_s, omega[1] * dt_s, omega[2] * dt_s};
-    orientation * Quaternion::from_rotvec(dtheta);
-    float euler[3] = Quaternion::to_euler(orientation);
+    float accel[3] = {corrAccRaw.x, corrAccRaw.y, corrAccRaw.z};
 
-    Serial.print("Orient- Yaw: ");
-    Serial.print(euler[0]);
-    Serial.print(" Pitch: ");
-    Serial.print(euler[1]);
-    Serial.print(" Roll: ");
-    Serial.println(euler[2]);
+    if(do_orient && gyr_state){
+      float dt_s = dt / 1000.0;
+      float dtheta[3] = {omega[0] * dt_s, omega[1] * dt_s, omega[2] * dt_s};
+      orientation * Quaternion::from_rotvec(dtheta);
+      float euler[3] = Quaternion::to_euler(orientation);
 
-    delay(25);
+      Serial.print("Ori - Yaw: ");
+      Serial.print(euler[0]);
+      Serial.print(" Pitch: ");
+      Serial.print(euler[1]);
+      Serial.print(" Roll: ");
+      Serial.println(euler[2]);
+    }
+    if(do_alt && gyr_state && accel_state) {
+      altitude.estimate(accel, omega, baroElevation, read);
+      Serial.print("Alt - Altitude: ");
+      Serial.print(altitude.getAltitude());
+      Serial.print(" Vertical Vel: ");
+      Serial.print(altitude.getVerticalVelocity());
+      Serial.print(" Vertical Accel: ");
+      Serial.println(altitude.getVerticalAcceleration());
+    }
+
   }
+  delay(25);
 }
 
 
