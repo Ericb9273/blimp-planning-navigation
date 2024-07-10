@@ -84,8 +84,9 @@ Quaternion Quaternion::from_rotvec(const float *rotvec) {
     return quat;
 }
 
-float* Quaternion::to_euler(const Quaternion quat) {
-    float euler[3] = {0, 0, 0};
+float* Quaternion::to_euler(const Quaternion& quat) {
+    float euler[3] = {0.0, 0.0, 0.0};
+    /*
     double sinr_cosp = 2 * (quat.w * quat.x + quat.y * quat.z);
     double cosr_cosp = 1 - 2 * (quat.x * quat.x + quat.y * quat.y);
     double roll = atan2(sinr_cosp, cosr_cosp);
@@ -106,5 +107,41 @@ float* Quaternion::to_euler(const Quaternion quat) {
     euler[0] = yaw;
     euler[1] = pitch;
     euler[2] = roll;
+    return euler;
+    */
+    double roll = 0.0;
+    double pitch = 0.0;
+    double yaw = 0.0;
+    const double w2 = quat.w * quat.w;
+    const double x2 = quat.x * quat.x;
+    const double y2 = quat.y * quat.y;
+    const double z2 = quat.z * quat.z;
+    const double unitLength = w2 + x2 + y2 + z2;    // Normalised == 1, otherwise correction divisor.
+    const double abcd = quat.w * quat.x + quat.y * quat.z;
+    const double eps = 1e-7;    // TODO: pick from your math lib instead of hardcoding.
+    const double pi = 3.14159265358979323846;   // TODO: pick from your math lib instead of hardcoding.
+    if (abcd > (0.5-eps)*unitLength)
+    {
+        yaw = 2 * atan2(quat.y, quat.w);
+        pitch = pi;
+        roll = 0;
+    }
+    else if (abcd < (-0.5+eps)*unitLength)
+    {
+        yaw = -2 * ::atan2(quat.y, quat.w);
+        pitch = -pi;
+        roll = 0;
+    }
+    else
+    {
+        const double adbc = quat.w * quat.z - quat.x * quat.y;
+        const double acbd = quat.w * quat.y - quat.x * quat.z;
+        yaw = ::atan2(2*adbc, 1 - 2*(z2+x2));
+        pitch = ::asin(2*abcd/unitLength);
+        roll = ::atan2(2*acbd, 1 - 2*(y2+x2));
+    }
+    euler[0] = roll;
+    euler[1] = pitch;
+    euler[2] = yaw;
     return euler;
 }

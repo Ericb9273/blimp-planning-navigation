@@ -26,7 +26,7 @@ class Quaternion {
         void normalize();
         
         static Quaternion from_rotvec(const float *rotvec);
-        static float* to_euler(const Quaternion quat);
+        static float* to_euler(const Quaternion& quat);
 };
 
 #endif
