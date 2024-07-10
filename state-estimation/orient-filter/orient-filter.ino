@@ -175,18 +175,31 @@ void loop() {
     float omega[3] = {gyr.x * to_rad, gyr.y * to_rad, gyr.z * to_rad};
     float accel[3] = {corrAccRaw.x, corrAccRaw.y, corrAccRaw.z};
 
+
     if(do_orient && gyr_state){
       float dt_s = dt / 1000.0;
       float dtheta[3] = {omega[0] * dt_s, omega[1] * dt_s, omega[2] * dt_s};
-      orientation * Quaternion::from_rotvec(dtheta);
-      float* euler = Quaternion::to_euler(orientation);
+      orientation = orientation * Quaternion::from_rotvec(dtheta);
+      double roll = 0.0;
+      double pitch = 0.0;
+      double yaw = 0.0;
+      Quaternion::to_euler(orientation, roll, pitch, yaw);
 
-      Serial.print("Ori - Yaw: ");
-      Serial.print(euler[0]);
+      //Serial.print("orientation: ");
+      //Serial.print(orientation.w);
+      //Serial.print(" ");
+      //Serial.print(orientation.x);
+      //Serial.print(" ");
+      //Serial.print(orientation.y);
+      //Serial.print(" ");
+      //Serial.println(orientation.z);
+
+      Serial.print("Yaw: ");
+      Serial.print(yaw);
       Serial.print(" Pitch: ");
-      Serial.print(euler[1]);
+      Serial.println(pitch);
       Serial.print(" Roll: ");
-      Serial.println(euler[2]);
+      Serial.println(roll);
     }
     if(do_alt && gyr_state && accel_state) {
       altitude.estimate(accel, omega, baroElevation, read);
