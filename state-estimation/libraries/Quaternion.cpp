@@ -1,4 +1,6 @@
 #include "Quaternion.hpp"
+#include <Arduino.h>
+
 
 // Default constructor
 Quaternion::Quaternion() : w(1.0), x(0.0), y(0.0), z(0.0) {}
@@ -116,8 +118,19 @@ float* Quaternion::to_euler(const Quaternion& quat) {
     const double x2 = quat.x * quat.x;
     const double y2 = quat.y * quat.y;
     const double z2 = quat.z * quat.z;
+    Serial.print(w2);
+    Serial.print(" ");
+    Serial.print(x2);
+    Serial.print(" ");
+    Serial.print(y2);
+    Serial.print(" ");
+    Serial.println(z2);
     const double unitLength = w2 + x2 + y2 + z2;    // Normalised == 1, otherwise correction divisor.
     const double abcd = quat.w * quat.x + quat.y * quat.z;
+    Serial.print("Unit length: ");
+    Serial.println(unitLength);
+    Serial.print("abcd: ");
+    Serial.println(abcd);
     const double eps = 1e-7;    // TODO: pick from your math lib instead of hardcoding.
     const double pi = 3.14159265358979323846;   // TODO: pick from your math lib instead of hardcoding.
     if (abcd > (0.5-eps)*unitLength)
