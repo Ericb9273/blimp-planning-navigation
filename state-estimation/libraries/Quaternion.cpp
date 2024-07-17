@@ -86,33 +86,52 @@ Quaternion Quaternion::from_rotvec(const float *rotvec) {
     return quat;
 }
 
-float* Quaternion::to_euler(const Quaternion& quat, double& roll, double& pitch, double& yaw) {
-    const double w2 = quat.w * quat.w;
-    const double x2 = quat.x * quat.x;
-    const double y2 = quat.y * quat.y;
-    const double z2 = quat.z * quat.z;
+void Quaternion::to_euler(const Quaternion& q, double& roll, double& pitch, double& yaw) {
+    /*
+    const double w2 = q.w * q.w;
+    const double x2 = q.x * q.x;
+    const double y2 = q.y * q.y;
+    const double z2 = q.z * q.z;
     const double unitLength = w2 + x2 + y2 + z2;    // Normalised == 1, otherwise correction divisor.
-    const double abcd = quat.w * quat.x + quat.y * quat.z;
+    const double abcd = q.w * q.x + q.y * q.z;
     const double eps = 1e-7;    // TODO: pick from your math lib instead of hardcoding.
     const double pi = 3.14159265358979323846;   // TODO: pick from your math lib instead of hardcoding.
     if (abcd > (0.5-eps)*unitLength)
     {
-        yaw = 2 * atan2(quat.y, quat.w);
+        yaw = 2 * atan2(q.y, q.w);
         pitch = pi;
         roll = 0;
     }
     else if (abcd < (-0.5+eps)*unitLength)
     {
-        yaw = -2 * atan2(quat.y, quat.w);
+        yaw = -2 * atan2(q.y, q.w);
         pitch = -pi;
         roll = 0;
     }
     else
     {
-        const double adbc = quat.w * quat.z - quat.x * quat.y;
-        const double acbd = quat.w * quat.y - quat.x * quat.z;
+        const double adbc = q.w * q.z - q.x * q.y;
+        const double acbd = q.w * q.y - q.x * q.z;
         yaw = atan2(2*adbc, 1 - 2*(z2+x2));
         pitch = asin(2*abcd/unitLength);
         roll = atan2(2*acbd, 1 - 2*(y2+x2));
     }
+    */
+    // roll (x-axis rotation)
+    double sinr_cosp = +2.0 * (q.w * q.x + q.y * q.z);
+    double cosr_cosp = +1.0 - 2.0 * (q.x * q.x + q.y * q.y);
+    roll = atan2(sinr_cosp, cosr_cosp);
+
+    // pitch (y-axis rotation)
+    double sinp = +2.0 * (q.w * q.y - q.z * q.x);
+    if (fabs(sinp) >= 1)
+        pitch = copysign(M_PI / 2, sinp); // use 90 degrees if out of range
+    else
+        pitch = asin(sinp);
+
+    // yaw (z-axis rotation)
+    double siny_cosp = +2.0 * (q.w * q.z + q.x * q.y);
+    double cosy_cosp = +1.0 - 2.0 * (q.y * q.y + q.z * q.z);
+    yaw = atan2(siny_cosp, cosy_cosp);
+
 }
