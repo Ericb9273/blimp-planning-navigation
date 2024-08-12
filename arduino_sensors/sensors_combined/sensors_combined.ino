@@ -13,9 +13,9 @@ void barometer_setup()
 {
     Serial.begin(115200);
     while(icp.begin() != 0){
-      Serial.println("Failed to initialize the sensor");
+      //Serial.println("Failed to initialize the sensor");
       }
-     Serial.println("Success to initialize the sensor");
+     //Serial.println("Success to initialize the sensor");
      /**
       * @brief 设置工作模式
       * |------------------|-----------|-------------------|----------------------|
@@ -27,17 +27,19 @@ void barometer_setup()
       */
      icp.setWorkPattern(icp.eUltraLowNoise);
 }
+double elevation = 0.0;
 void barometer_getvalue()
 {
-  Serial.print("Read air pressure:");
-  Serial.print(icp.getAirPressure());
-  Serial.println("Pa");
-  Serial.print("Read temperature:");
-  Serial.print(icp.getTemperature());
-  Serial.println("℃");
-  Serial.print("Read altitude:");
-  Serial.print(icp.getElevation());
-  Serial.println("m");
+  //Serial.print("Read air pressure:");
+  //Serial.print(icp.getAirPressure());
+  //Serial.println("Pa");
+  //Serial.print("Read temperature:");
+//  Serial.print(icp.getTemperature());
+//  Serial.println("℃");
+//  Serial.print("Read altitude:");
+//  Serial.print(icp.getElevation());
+//  Serial.println("m");
+    elevation = icp.getElevation();
 }
 
 
@@ -51,16 +53,16 @@ void IMU_setup() {
   Wire.begin();
   while (!Serial) {}
   if (!myIMU.init()) {
-    Serial.println("ICM20948 does not respond");
+    //Serial.println("ICM20948 does not respond");
   } else {
-    Serial.println("ICM20948 is connected");
+    //Serial.println("ICM20948 is connected");
   }
 //  myIMU.setAccOffsets(-16330.0, 16450.0, -16600.0, 16180.0, -16640.0, 16560.0);
 
-  Serial.println("Position your ICM20948 flat and don't move it - calibrating...");
+  //Serial.println("Position your ICM20948 flat and don't move it - calibrating...");
   delay(1000);
   myIMU.autoOffsets();
-  Serial.println("Done!");
+  //Serial.println("Done!");
 
   /* enables or disables the gyroscope sensor, default: enabled */
    myIMU.enableGyr(true);
@@ -90,15 +92,52 @@ void IMU_setup() {
   myIMU.setAccDLPF(ICM20948_DLPF_6);
 }
 
+
+#include <algebra.h>
+#include <altitude.h>
+#include <filters.h>
+#include "Quaternion.hpp"
+Quaternion orientation;
+#define to_rad 3.14159265359 / 180.0
+uint32_t last_read = 0;
+double roll = 0.0;
+double pitch = 0.0;
+double yaw = 0.0;
 void IMU_getvalue(){
   myIMU.readSensor();
+  uint32_t read = millis();
+  uint32_t dt = read - last_read;
+  last_read = read;
   xyzFloat gyr = myIMU.getGyrValues();
-  Serial.print("Gyroscope: ");
-  Serial.print(gyr.x);
-  Serial.print(" ");
-  Serial.print(gyr.y);
-  Serial.print(" ");
-  Serial.println(gyr.z);
+  xyzFloat corrAccRaw = myIMU.getCorrectedAccRawValues();
+  //Serial.print("Gyroscope: ");
+  //Serial.print(gyr.x);
+  //Serial.print(" ");
+  //Serial.print(gyr.y);
+  //Serial.print(" ");
+  //Serial.println(gyr.z);
+  float omega[3] = {gyr.x * to_rad, gyr.y * to_rad, gyr.z * to_rad};
+  float accel[3] = {corrAccRaw.x, corrAccRaw.y, corrAccRaw.z};
+      float dt_s = dt / 1000.0;
+      float dtheta[3] = {omega[0] * dt_s, omega[1] * dt_s, omega[2] * dt_s};
+      orientation = orientation * Quaternion::from_rotvec(dtheta);
+      Quaternion::to_euler(orientation, pitch, roll, yaw);
+
+      //Serial.print("orientation: ");
+      //Serial.print(orientation.w);
+      //Serial.print(" ");
+      //Serial.print(orientation.x);
+      //Serial.print(" ");
+      //Serial.print(orientation.y);
+      //Serial.print(" ");
+      //Serial.println(orientation.z);
+
+      //Serial.print("Yaw: ");
+      //Serial.println(yaw);
+      //Serial.print(" Pitch: ");
+      //Serial.println(pitch);
+      //Serial.print(" Roll: ");
+      //Serial.println(roll);
   }
 
 
@@ -154,15 +193,17 @@ int16_t tfDist = 0;       // Distance to object in centimeters
 int16_t tfFlux = 0;       // Signal strength or quality of return signal
 int16_t tfTemp = 0;       // Internal temperature of Lidar sensor chip
 
+double Dist = 0.0;
 void Lidar_getvalue()
 {
     tfmP.getData( tfDist, tfFlux, tfTemp); // Get a frame of data
     if( tfmP.status == TFMP_READY)         // If no error...
     {
-        printf( "Dist:%04icm ", tfDist);   // display distance,
-        printf( "Flux:%05i ", tfFlux);     // display signal strength/quality,
-        printf( "Temp:%2i%s", tfTemp, "°C" );   // display temperature,
-        printf( "\n");                     // end-of-line.
+        //printf( "Dist:%04icm ", tfDist);
+        Dist = tfDist; // display distance,
+        //printf( "Flux:%05i ", tfFlux);     // display signal strength/quality,
+        //printf( "Temp:%2i%s", tfTemp, "°C" );   // display temperature,
+        //printf( "\n");                     // end-of-line.
     }
     else
     {
@@ -173,6 +214,39 @@ void Lidar_getvalue()
         }
     }
 }
+
+
+// 初始化卡尔曼滤波器参数
+float x_est_last = 0; // 初始状态
+float P_last = 0; // 初始估计协方差
+// 噪声参数
+float Q = 0.022; // 过程噪声协方差
+float R = 0.617; // 测量噪声协方差
+
+double kalmanfilter (double h1, double h2) {
+  float x_pred = x_est_last;
+  float P_pred = P_last + Q;
+
+  // 更新步骤
+  float K = P_pred / (P_pred + R);
+  float x_est = x_pred + K * (h1 - x_pred); // 使用h1更新
+  float P_est = (1 - K) * P_pred;
+
+  // 使用h2更新
+  K = P_est / (P_est + R);
+  x_est = x_est + K * (h2 - x_est);
+  P_est = (1 - K) * P_est;
+
+  // 保存状态
+  x_est_last = x_est;
+  P_last = P_est;
+
+  Serial.print("Height: ");
+  Serial.print(x_est);
+  Serial.println("cm");
+
+}
+
 
 
 void setup() {
@@ -200,5 +274,11 @@ void loop() {
   barometer_getvalue();
   Wire.endTransmission();
 
+  double Altitude = Dist * cos(pitch)* cos(roll);
+  Serial.print("Dist: ");
+  Serial.println(Dist);
+  Serial.print("Altitude:");
+  Serial.println(Altitude);
+  //kalmanfilter(Altitude, (elevation - 238)*100);
   delay(25);
 }
