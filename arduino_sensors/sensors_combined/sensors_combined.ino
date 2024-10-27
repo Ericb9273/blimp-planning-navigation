@@ -228,98 +228,184 @@ void barometer_getvalue()
 
 
 // IMU Code
-#include <ICM20948_WE.h>
-#define ICM20948_ADDR 0x68
-ICM20948_WE myIMU = ICM20948_WE(ICM20948_ADDR);
+#include <Adafruit_ICM20X.h>
+#include <Adafruit_ICM20948.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+
+Adafruit_ICM20948 icm;
 
 void IMU_setup() {
-  Serial.begin(115200);  // activating serial
-  Wire.begin();
-  while (!Serial) {}
-  if (!myIMU.init()) {
-    //Serial.println("ICM20948 does not respond");
-  } else {
-    //Serial.println("ICM20948 is connected");
+  Serial.begin(115200);
+  Serial.println("Adafruit ICM20948 test!");
+
+  // Try to initialize!
+  if (!icm.begin_I2C()) {
+    // if (!icm.begin_SPI(ICM_CS)) {
+    // if (!icm.begin_SPI(ICM_CS, ICM_SCK, ICM_MISO, ICM_MOSI)) {
+
+    Serial.println("Failed to find ICM20948 chip");
+    while (1) {
+      delay(10);
+    }
   }
-//  myIMU.setAccOffsets(-16330.0, 16450.0, -16600.0, 16180.0, -16640.0, 16560.0);
+  Serial.println("ICM20948 Found!");
+  // icm.setAccelRange(ICM20948_ACCEL_RANGE_16_G);
+  Serial.print("Accelerometer range set to: ");
+  switch (icm.getAccelRange()) {
+  case ICM20948_ACCEL_RANGE_2_G:
+    Serial.println("+-2G");
+    break;
+  case ICM20948_ACCEL_RANGE_4_G:
+    Serial.println("+-4G");
+    break;
+  case ICM20948_ACCEL_RANGE_8_G:
+    Serial.println("+-8G");
+    break;
+  case ICM20948_ACCEL_RANGE_16_G:
+    Serial.println("+-16G");
+    break;
+  }
+  Serial.println("OK");
 
-  //Serial.println("Position your ICM20948 flat and don't move it - calibrating...");
-  delay(1000);
-  myIMU.autoOffsets();
-  //Serial.println("Done!");
+  // icm.setGyroRange(ICM20948_GYRO_RANGE_2000_DPS);
+  Serial.print("Gyro range set to: ");
+  switch (icm.getGyroRange()) {
+  case ICM20948_GYRO_RANGE_250_DPS:
+    Serial.println("250 degrees/s");
+    break;
+  case ICM20948_GYRO_RANGE_500_DPS:
+    Serial.println("500 degrees/s");
+    break;
+  case ICM20948_GYRO_RANGE_1000_DPS:
+    Serial.println("1000 degrees/s");
+    break;
+  case ICM20948_GYRO_RANGE_2000_DPS:
+    Serial.println("2000 degrees/s");
+    break;
+  }
 
-  /* enables or disables the gyroscope sensor, default: enabled */
-   myIMU.enableGyr(true);
-   myIMU.enableAcc(true);
+  //  icm.setAccelRateDivisor(4095);
+  uint16_t accel_divisor = icm.getAccelRateDivisor();
+  float accel_rate = 1125 / (1.0 + accel_divisor);
 
-  myIMU.setGyrRange(ICM20948_GYRO_RANGE_250);
-  myIMU.setAccRange(ICM20948_ACC_RANGE_2G);
+  Serial.print("Accelerometer data rate divisor set to: ");
+  Serial.println(accel_divisor);
+  Serial.print("Accelerometer data rate (Hz) is approximately: ");
+  Serial.println(accel_rate);
 
-  /*  Choose a level for the Digital Low Pass Filter or switch it off. 
-   *  ICM20948_DLPF_0, ICM20948_DLPF_2, ...... ICM20948_DLPF_7, ICM20948_DLPF_OFF 
-   *  
-   *  DLPF       3dB Bandwidth [Hz]      Output Rate [Hz]
-   *    0              196.6               1125/(1+GSRD) 
-   *    1              151.8               1125/(1+GSRD)
-   *    2              119.5               1125/(1+GSRD)
-   *    3               51.2               1125/(1+GSRD)
-   *    4               23.9               1125/(1+GSRD)
-   *    5               11.6               1125/(1+GSRD)
-   *    6                5.7               1125/(1+GSRD) 
-   *    7              361.4               1125/(1+GSRD)
-   *    OFF          12106.0               9000
-   *    
-   *    GSRD = Gyroscope Sample Rate Divider (0...255)
-   *    You achieve lowest noise using level 6  
-   */
-  myIMU.setGyrSampleRateDivider(28);
-  myIMU.setGyrDLPF(ICM20948_DLPF_6);
-  myIMU.setAccDLPF(ICM20948_DLPF_6);
+  //  icm.setGyroRateDivisor(255);
+  uint8_t gyro_divisor = icm.getGyroRateDivisor();
+  float gyro_rate = 1100 / (1.0 + gyro_divisor);
+
+  Serial.print("Gyro data rate divisor set to: ");
+  Serial.println(gyro_divisor);
+  Serial.print("Gyro data rate (Hz) is approximately: ");
+  Serial.println(gyro_rate);
+
+  // icm.setMagDataRate(AK09916_MAG_DATARATE_10_HZ);
+  Serial.print("Magnetometer data rate set to: ");
+  switch (icm.getMagDataRate()) {
+  case AK09916_MAG_DATARATE_SHUTDOWN:
+    Serial.println("Shutdown");
+    break;
+  case AK09916_MAG_DATARATE_SINGLE:
+    Serial.println("Single/One shot");
+    break;
+  case AK09916_MAG_DATARATE_10_HZ:
+    Serial.println("10 Hz");
+    break;
+  case AK09916_MAG_DATARATE_20_HZ:
+    Serial.println("20 Hz");
+    break;
+  case AK09916_MAG_DATARATE_50_HZ:
+    Serial.println("50 Hz");
+    break;
+  case AK09916_MAG_DATARATE_100_HZ:
+    Serial.println("100 Hz");
+    break;
+  }
+  Serial.println();
 }
 
 
-#include <algebra.h>
-#include <altitude.h>
-#include <filters.h>
-#include "Quaternion.hpp"
-Quaternion orientation;
-#define to_rad 3.14159265359 / 180.0
 uint32_t last_read = 0;
 double roll = 0.0;
 double pitch = 0.0;
 double yaw = 0.0;
 void IMU_getvalue(){
-  myIMU.readSensor();
+  sensors_event_t acc;
+  sensors_event_t gyro;
+  sensors_event_t mag;
+  sensors_event_t temp;
+  icm.getEvent(&acc, &gyro, &temp, &mag);
   uint32_t read = millis();
-  uint32_t dt = read - last_read;
+  uint32_t dts = read - last_read;
   last_read = read;
-  xyzFloat gyr = myIMU.getGyrValues();
-  xyzFloat corrAccRaw = myIMU.getCorrectedAccRawValues();
-  //Serial.print("Gyroscope: ");
-  //Serial.print(gyr.x);
-  //Serial.print(" ");
-  //Serial.print(gyr.y);
-  //Serial.print(" ");
-  //Serial.println(gyr.z);
-  float omega[3] = {gyr.x * to_rad, gyr.y * to_rad, gyr.z * to_rad};
-  float accel[3] = {corrAccRaw.x, corrAccRaw.y, corrAccRaw.z};
-      float dt_s = dt / 1000.0;
-      float dtheta[3] = {omega[0] * dt_s, omega[1] * dt_s, omega[2] * dt_s};
-      orientation = orientation * Quaternion::from_rotvec(dtheta);
-      Quaternion::to_euler(orientation, pitch, roll, yaw);
-      Serial.print(corrAccRaw.x/ 16384.0);
-      Serial.print(" ");
-      Serial.print(corrAccRaw.y/ 16384.0);
-      Serial.print(" ");
-      Serial.print(corrAccRaw.z/ 16384.0);
-      Serial.print(" ");
-      Serial.print(gyr.x);
-      Serial.print(" ");
-      Serial.print(gyr.y);
-      Serial.print(" ");
-      Serial.print(gyr.z);
-      Serial.print(" ");
-  }
+  float omega[3] = {gyro.gyro.x, gyro.gyro.y, gyro.gyro.z};
+  float accel[3] = {acc.acceleration.x, acc.acceleration.y, acc.acceleration.z};
+  float dt = dts / 1000.0;
+
+  // 卡尔曼滤波器变量
+  float P[2][2] = { {1, 0}, {0, 1} };  // 误差协方差矩阵
+  float Q_angle = 0.001;    // 角度过程噪声
+  float Q_gyro = 0.003;     // 角速度过程噪声
+  float R_angle = 0.03;     // 测量噪声
+  float K[2];               // 卡尔曼增益
+  float y;                  // 角度误差
+  float S;                  // 测量误差
+// 从IMU获取数据（假设数据为弧度/秒 和 m/s^2）
+  float gyroX = gyro.gyro.x;
+  float gyroY = gyro.gyro.y;
+  float gyroZ = gyro.gyro.z;
+
+  float accX = acc.acceleration.x;
+  float accY = acc.acceleration.y;
+  float accZ = acc.acceleration.z;
+
+  // 使用加速度计数据计算Roll和Pitch
+  float accRoll = atan2(accY, accZ);
+  float accPitch = atan2(-accX, sqrt(accY * accY + accZ * accZ));
+
+  // 卡尔曼滤波器：状态预测（预测Roll和Pitch）
+  roll += gyroX * dt;
+  pitch += gyroY * dt;
+
+  // 更新误差协方差矩阵P
+  P[0][0] += dt * (dt * P[1][1] - P[0][1] - P[1][0] + Q_angle);
+  P[0][1] -= dt * P[1][1];
+  P[1][0] -= dt * P[1][1];
+  P[1][1] += Q_gyro * dt;
+
+  // 计算卡尔曼增益K
+  S = P[0][0] + R_angle;
+  K[0] = P[0][0] / S;
+  K[1] = P[1][0] / S;
+
+  // 计算角度误差
+  y = accRoll - roll;
+
+  // 状态更新
+  roll += K[0] * y;
+  pitch += K[0] * (accPitch - pitch);
+
+  // 更新误差协方差矩阵P
+  P[0][0] -= K[0] * P[0][0];
+  P[0][1] -= K[0] * P[0][1];
+  P[1][0] -= K[1] * P[0][0];
+  P[1][1] -= K[1] * P[0][1];
+
+  // 使用陀螺仪积分计算Yaw
+  yaw += gyroZ * dt;
+
+  // 输出角度（degree）
+  Serial.print("Roll: ");
+  Serial.print(roll / 3.1415926 * 180);
+  Serial.print(" Pitch: ");
+  Serial.print(pitch / 3.1415926 * 180);
+  Serial.print(" Yaw: ");
+  Serial.println(yaw / 3.1415926 * 180);
+}
 
 
 
